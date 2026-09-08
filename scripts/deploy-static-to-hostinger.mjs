@@ -18,6 +18,10 @@
 //   HOSTINGER_API_TOKEN — Hostinger API token (hpanel → API section)
 //   HOSTINGER_DOMAIN     — the website's domain
 //   BUILD_DIR            — path to the built static files (default: "dist")
+//   DEPLOY_PATH_PREFIX   — remote subdirectory (relative to public_html) to upload into,
+//                          e.g. "dev/" to deploy to dev.mydiwalicrackers.com (a subdomain
+//                          whose root IS public_html/dev) without touching the production
+//                          files at public_html itself. Default: "" (site root / production).
 
 import { readdirSync, statSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -80,6 +84,7 @@ async function main() {
   const apiToken = requireEnv("HOSTINGER_API_TOKEN");
   const domain = requireEnv("HOSTINGER_DOMAIN");
   const buildDir = process.env.BUILD_DIR || "dist";
+  const pathPrefix = process.env.DEPLOY_PATH_PREFIX || "";
 
   const files = walk(buildDir);
   if (files.length === 0) {
@@ -108,12 +113,14 @@ async function main() {
     let done = 0;
     for (const relPath of files) {
       const localPath = join(buildDir, relPath);
-      await uploadFile(upload.url, upload.auth_key, upload.rest_auth_key, localPath, relPath);
+      const remotePath = pathPrefix + relPath;
+      await uploadFile(upload.url, upload.auth_key, upload.rest_auth_key, localPath, remotePath);
       done += 1;
-      console.log(`  [${done}/${files.length}] ${relPath}`);
+      console.log(`  [${done}/${files.length}] ${remotePath}`);
     }
 
-    console.log(`✓ Deployed ${done} files to https://${domain} (api/uploads/ was not touched).`);
+    const target = pathPrefix ? `https://${domain}/${pathPrefix}` : `https://${domain}`;
+    console.log(`✓ Deployed ${done} files to ${target} (api/uploads/ was not touched).`);
   } finally {
     await client.close();
   }
