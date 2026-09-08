@@ -1,0 +1,34 @@
+Options -MultiViews
+RewriteEngine On
+RewriteBase /
+
+# Canonical redirect to production HTTPS domain
+RewriteCond %{HTTP_HOST} !^mydiwalicrackers\.com$ [NC,OR]
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://mydiwalicrackers.com%{REQUEST_URI} [R=301,L]
+
+# Allow direct access to uploads folder
+RewriteRule ^uploads/ - [L]
+RewriteRule ^api/uploads/ - [L]
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [L]
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+</IfModule>
+
+# mod_deflate removed: Hostinger's LiteSpeed already compresses responses,
+# and double compression corrupts the HTTP/2 stream (net::ERR_HTTP2_PROTOCOL_ERROR).
