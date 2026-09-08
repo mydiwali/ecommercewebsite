@@ -1,9 +1,9 @@
 <?php
 // ── Database config — fill these with Hostinger MySQL values ─────────────────
-define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
-define('DB_USER', getenv('DB_USER') ?: 'root');
-define('DB_PASS', getenv('DB_PASS') ?: '');
-define('DB_NAME', getenv('DB_NAME') ?: 'diwali_crackers');
+define('DB_HOST', getenv('DB_HOST') ?: 'srv1334.hstgr.io');
+define('DB_USER', getenv('DB_USER') ?: 'u944058827_Guru716');
+define('DB_PASS', getenv('DB_PASS') ?: '0LGJ8CJx_qXWaNrtIJjHH-YL');
+define('DB_NAME', getenv('DB_NAME') ?: 'u944058827_mydiwalicrackz');
 
 // ── JWT Secret ───────────────────────────────────────────────────────────────
 define('JWT_SECRET', getenv('JWT_SECRET') ?: 'REPLACE_WITH_64_CHAR_SECRET');
