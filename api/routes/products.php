@@ -74,6 +74,49 @@ function routeProducts(string $method, string $seg1, string $seg2): void {
         ]]);
     }
 
+    // GET /products/featured-by-category
+    // One query (window function) instead of the frontend firing one request per category —
+    // that N-parallel-requests pattern was overwhelming shared hosting under real traffic and
+    // causing random 500s partway through, which is what made the homepage's "Featured
+    // Crackers" section intermittently render empty. See git log 2026-09-08 for the incident.
+    if ($method === 'GET' && $seg1 === 'featured-by-category') {
+        $perCategory = max(1, min(20, (int)($_GET['perCategory'] ?? 8)));
+
+        $rows = queryAll(
+            "SELECT * FROM (
+                SELECT p.id, p.name, p.name_in_tamil, p.slug, p.price, p.original_price, p.sku,
+                       p.stock, p.category_id, p.active, p.is_featured, p.avg_rating,
+                       p.primary_image_url, p.product_number, p.created_at,
+                       c.id AS cat_id, c.name AS cat_name, c.slug AS cat_slug,
+                       c.sort_order AS cat_sort,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY p.category_id
+                           ORDER BY p.is_featured DESC, p.avg_rating DESC, p.created_at DESC
+                       ) AS rn
+                FROM products p
+                JOIN categories c ON c.id = p.category_id AND c.is_active = 1
+                WHERE p.active = 1
+             ) ranked
+             WHERE rn <= ?
+             ORDER BY cat_sort ASC, cat_name ASC, rn ASC",
+            'i', [$perCategory]
+        );
+
+        $groups = []; // preserves category order as returned by the query
+        foreach ($rows as $row) {
+            $catId = $row['cat_id'];
+            if (!isset($groups[$catId])) {
+                $groups[$catId] = [
+                    'category' => ['id' => $catId, 'name' => $row['cat_name'], 'slug' => $row['cat_slug']],
+                    'products' => [],
+                ];
+            }
+            $groups[$catId]['products'][] = normalizeProduct($row);
+        }
+
+        jsonOut(['data' => array_values($groups)]);
+    }
+
     // GET /products/:slug/images
     if ($method === 'GET' && $seg1 && $seg2 === 'images') {
         $prod = queryOne('SELECT id FROM products WHERE slug = ? LIMIT 1', 's', [$seg1]);
