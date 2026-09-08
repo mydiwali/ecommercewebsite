@@ -2,12 +2,24 @@
 # Assembles the deployable subset of this repo into dist/ so scripts/deploy-static-to-hostinger.mjs
 # has a clean archive root (no README/*.md/*.sh docs, no .git, no node_modules).
 #
-# IMPORTANT: api/uploads/ is deliberately EXCLUDED (only its .htaccess placeholder is tracked in
-# git — real product images get uploaded to it live, on the server, via the admin panel, and are
-# never in this repo). Do not add it here without first confirming with Hostinger support/docs
-# whether hosting_deployStaticSiteArchiveV1 fully wipes the destination before extracting, or
-# only overlays matching paths — if it wipes, including this script's (empty) copy would delete
-# every live product image on every deploy.
+# IMPORTANT — two things are deliberately EXCLUDED and must stay excluded:
+#
+# 1) api/uploads/ (only its .htaccess placeholder is tracked in git — real product images get
+#    uploaded to it live, on the server, via the admin panel, and are never in this repo).
+#
+# 2) api/config.php. This file holds the LIVE database credentials and JWT secret for
+#    mydiwalicrackers.com. Those values only ever exist on the server — they are not derivable
+#    from anything in this repo, and there is no working secrets-injection mechanism for this
+#    "other"/CloudLinux PHP hosting (no per-app env vars like Node.js hosting gets). git's copy of
+#    api/config.php is a reference/local-dev template only, with placeholder values.
+#
+#    On 2026-09-08 this file WAS included in the deploy set, and one push overwrote the server's
+#    real credentials with git's placeholders — api/products started 500ing and every product
+#    image disappeared from the storefront until the real credentials were reconstructed by hand
+#    (see git log around that date). Do not re-add api/config.php here without first setting up a
+#    real secrets mechanism (server-side PHP env vars, or a git-ignored file that's uploaded once
+#    and never touched by this script again) — "it's just another repo file" is exactly the
+#    assumption that broke production.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -17,9 +29,9 @@ mkdir -p dist
 cp -r index.html payments.html sw.js logo.png .htaccess admin assets banners dist/
 mkdir -p dist/api
 cp -r api/. dist/api/
-rm -rf dist/api/uploads
+rm -rf dist/api/uploads dist/api/config.php
 mkdir -p dist/api/uploads
 cp api/uploads/.htaccess dist/api/uploads/.htaccess 2>/dev/null || true
 
-echo "dist/ assembled:"
+echo "dist/ assembled (api/uploads/ and api/config.php excluded — see comment above):"
 du -sh dist
