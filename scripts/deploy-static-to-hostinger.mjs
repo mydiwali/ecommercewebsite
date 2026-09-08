@@ -1,22 +1,26 @@
 #!/usr/bin/env node
-// Static-site variant of deploy-to-hostinger.mjs — for a project with no
-// server/build step on Hostinger's side (plain HTML/CSS/JS, or the pre-built
-// output of a frontend framework you build locally/in CI before this runs).
+// Deploys dist/ (built by scripts/build-dist.sh) to mydiwalicrackers.com file-by-file, via
+// Hostinger's TUS resumable-upload endpoint — NOT via hosting_deployStaticSiteArchiveV1 /
+// hosting_deployStaticWebsite.
 //
-// Uses hosting_deployStaticWebsite instead of hosting_deployJsApplication.
-// Key difference from the Node.js variant: archive the BUILD OUTPUT directory
-// (e.g. dist/, build/, out/), not the git repo — and index.html must be at
-// the archive's root, not nested in a subfolder.
+// Why not the usual archive-based deploy (as documented in the hostinger-cicd skill): this
+// site's document root has real, server-only state living next to the static files —
+// api/uploads/product-images/<uuid>/... — product photos uploaded live through the admin
+// panel, never tracked in git. The archive-deploy tools are explicitly documented as
+// overwriting the website's existing contents ("cannot be undone"), and it's not established
+// whether that clears the whole document root before extracting or only overlays matching
+// paths. Given real production data is at stake, this script instead uploads only the files
+// that are actually part of the site's known deployable set (dist/, which build-dist.sh
+// assembles WITHOUT api/uploads/), each to its own path with override=true — so nothing
+// outside that exact file list is ever touched, deleted, or at risk.
 //
 // Required env vars:
 //   HOSTINGER_API_TOKEN — Hostinger API token (hpanel → API section)
 //   HOSTINGER_DOMAIN     — the website's domain
 //   BUILD_DIR            — path to the built static files (default: "dist")
 
-import { execSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { readdirSync, statSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
@@ -33,18 +37,56 @@ async function callTool(client, name, args) {
   return JSON.parse(text);
 }
 
+function walk(dir, base = dir, out = []) {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (statSync(full).isDirectory()) {
+      walk(full, base, out);
+    } else {
+      out.push(relative(base, full));
+    }
+  }
+  return out;
+}
+
+async function uploadFile(uploadUrl, authKey, restAuthKey, localPath, remotePath) {
+  const bytes = readFileSync(localPath);
+  const dest = `${uploadUrl}/${remotePath}?override=true`;
+  const headers = {
+    "X-Auth": authKey,
+    "X-Auth-Rest": restAuthKey,
+    "Tus-Resumable": "1.0.0",
+  };
+
+  const createRes = await fetch(dest, {
+    method: "POST",
+    headers: { ...headers, "Upload-Length": String(bytes.length), "Upload-Offset": "0" },
+  });
+  if (!createRes.ok) {
+    throw new Error(`create failed for ${remotePath}: ${createRes.status} ${await createRes.text()}`);
+  }
+
+  const patchRes = await fetch(dest, {
+    method: "PATCH",
+    headers: { ...headers, "Content-Type": "application/offset+octet-stream", "Upload-Offset": "0" },
+    body: bytes,
+  });
+  if (!patchRes.ok) {
+    throw new Error(`upload failed for ${remotePath}: ${patchRes.status} ${await patchRes.text()}`);
+  }
+}
+
 async function main() {
   const apiToken = requireEnv("HOSTINGER_API_TOKEN");
   const domain = requireEnv("HOSTINGER_DOMAIN");
   const buildDir = process.env.BUILD_DIR || "dist";
 
-  const archiveDir = mkdtempSync(join(tmpdir(), "hostinger-deploy-"));
-  const stamp = new Date().toISOString().replace(/[-:T.]/g, "").slice(0, 14);
-  const archivePath = join(archiveDir, `site_${stamp}.zip`);
-
-  console.log(`Archiving ${buildDir}/ (index.html must be at its root)...`);
-  // Zip the CONTENTS of buildDir, not the folder itself, so index.html lands at the archive root.
-  execSync(`cd "${buildDir}" && zip -r "${archivePath}" .`, { stdio: "inherit" });
+  const files = walk(buildDir);
+  if (files.length === 0) {
+    console.error(`No files found in ${buildDir}/ — did the predeploy build step run?`);
+    process.exit(1);
+  }
+  console.log(`Found ${files.length} files in ${buildDir}/ to deploy to ${domain}.`);
 
   const transport = new StdioClientTransport({
     command: "npx",
@@ -55,10 +97,23 @@ async function main() {
   await client.connect(transport);
 
   try {
-    console.log(`Deploying to ${domain}...`);
-    await callTool(client, "hosting_deployStaticWebsite", { domain, archivePath, removeArchive: true });
-    console.log(`✓ Deployed (static deploys are effectively immediate).`);
-    console.log(`Live at: https://${domain}`);
+    const sites = await callTool(client, "hosting_listWebsitesV1", { domain });
+    const site = sites.data?.find(w => w.domain === domain);
+    if (!site) throw new Error(`No website found for domain ${domain}`);
+    const username = site.username;
+
+    console.log(`Requesting upload URL for ${username}/${domain}...`);
+    const upload = await callTool(client, "hosting_generateUploadURLV1", { username, domain });
+
+    let done = 0;
+    for (const relPath of files) {
+      const localPath = join(buildDir, relPath);
+      await uploadFile(upload.url, upload.auth_key, upload.rest_auth_key, localPath, relPath);
+      done += 1;
+      console.log(`  [${done}/${files.length}] ${relPath}`);
+    }
+
+    console.log(`✓ Deployed ${done} files to https://${domain} (api/uploads/ was not touched).`);
   } finally {
     await client.close();
   }
