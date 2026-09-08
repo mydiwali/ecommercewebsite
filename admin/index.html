@@ -7,12 +7,26 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
     <title>My Diwali Crackers - Admin</title>
+    <script>
+      // Apply the stored/preferred theme before first paint to avoid a flash of the wrong theme.
+      (function () {
+        try {
+          var t = localStorage.getItem('admin-theme');
+          if (t !== 'light' && t !== 'dark') {
+            t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          if (t === 'dark') document.documentElement.classList.add('dark');
+        } catch (_) {}
+      })();
+    </script>
     <script type="module" crossorigin src="/admin/assets/index-BymXIvPn.js?v=3"></script>
     <link rel="stylesheet" crossorigin href="/admin/assets/index-BuTBeeTd.css">
+    <link rel="stylesheet" crossorigin href="/admin/assets/dark-mode.css?v=1">
   </head>
   <body>
     <div id="root"></div>
     <script src="/admin/payments-subtab.js?v=4"></script>
     <script src="/admin/product-cost-and-summary.js?v=13"></script>
+    <script src="/admin/dark-mode-toggle.js?v=1"></script>
   </body>
 </html>

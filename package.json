@@ -1,0 +1,13 @@
+{
+  "name": "mydiwalicrackers-deploy",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Deploy tooling for mydiwalicrackers.com (the site itself is plain PHP/HTML/JS, no build step)",
+  "scripts": {
+    "predeploy": "bash scripts/build-dist.sh",
+    "deploy": "node --env-file-if-exists=.env.local scripts/deploy-static-to-hostinger.mjs"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}
