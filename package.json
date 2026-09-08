@@ -6,7 +6,7 @@
   "scripts": {
     "predeploy": "bash scripts/build-dist.sh",
     "deploy": "node --env-file-if-exists=.env.local scripts/deploy-static-to-hostinger.mjs",
-    "predeploy:staging": "bash scripts/build-dist.sh",
+    "predeploy:staging": "DEPLOY_TARGET=staging bash scripts/build-dist.sh",
     "deploy:staging": "DEPLOY_PATH_PREFIX=dev/ node --env-file-if-exists=.env.local scripts/deploy-static-to-hostinger.mjs"
   },
   "devDependencies": {

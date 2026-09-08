@@ -20,18 +20,28 @@
 #    real secrets mechanism (server-side PHP env vars, or a git-ignored file that's uploaded once
 #    and never touched by this script again) — "it's just another repo file" is exactly the
 #    assumption that broke production.
+# DEPLOY_TARGET=staging swaps in .htaccess.staging (same rules, minus the canonical
+# redirect-to-production-domain rule, which would otherwise bounce every request on
+# dev.mydiwalicrackers.com straight to the live site). Default: production.
+DEPLOY_TARGET="${DEPLOY_TARGET:-production}"
+
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 rm -rf dist
 mkdir -p dist
 
-cp -r index.html payments.html sw.js logo.png .htaccess admin assets banners dist/
+cp -r index.html payments.html sw.js logo.png admin assets banners dist/
+if [ "$DEPLOY_TARGET" = "staging" ]; then
+  cp .htaccess.staging dist/.htaccess
+else
+  cp .htaccess dist/.htaccess
+fi
 mkdir -p dist/api
 cp -r api/. dist/api/
 rm -rf dist/api/uploads dist/api/config.php
 mkdir -p dist/api/uploads
 cp api/uploads/.htaccess dist/api/uploads/.htaccess 2>/dev/null || true
 
-echo "dist/ assembled (api/uploads/ and api/config.php excluded — see comment above):"
+echo "dist/ assembled for DEPLOY_TARGET=$DEPLOY_TARGET (api/uploads/ and api/config.php excluded — see comment above):"
 du -sh dist
