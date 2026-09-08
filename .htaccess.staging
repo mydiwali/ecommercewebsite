@@ -1,0 +1,32 @@
+Options -MultiViews
+RewriteEngine On
+RewriteBase /
+
+# (No canonical-redirect-to-production rule here — that's the one difference from the
+# production .htaccess. dev.mydiwalicrackers.com must be reachable on its own hostname;
+# the production version's canonical redirect would otherwise bounce every request here
+# straight to https://mydiwalicrackers.com.)
+
+# Allow direct access to uploads folder
+RewriteRule ^uploads/ - [L]
+RewriteRule ^api/uploads/ - [L]
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.html [L]
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-Robots-Tag "noindex, nofollow"
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/webp "access plus 1 year"
+    ExpiresByType image/svg+xml "access plus 1 year"
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+</IfModule>
