@@ -80,7 +80,11 @@ function routeProducts(string $method, string $seg1, string $seg2): void {
     // causing random 500s partway through, which is what made the homepage's "Featured
     // Crackers" section intermittently render empty. See git log 2026-09-08 for the incident.
     if ($method === 'GET' && $seg1 === 'featured-by-category') {
-        $perCategory = max(1, min(20, (int)($_GET['perCategory'] ?? 8)));
+        $perCategory   = max(1, min(20, (int)($_GET['perCategory'] ?? 8)));
+        // Capped by default — this powers a homepage PREVIEW section, not a full catalog
+        // dump. The homepage already has a "View All Products" CTA for everything else;
+        // showing all 19 categories here (~100+ products on one page) defeats that.
+        $maxCategories = max(1, min(19, (int)($_GET['maxCategories'] ?? 6)));
 
         $rows = queryAll(
             "SELECT * FROM (
@@ -106,12 +110,13 @@ function routeProducts(string $method, string $seg1, string $seg2): void {
         foreach ($rows as $row) {
             $catId = $row['cat_id'];
             if (!isset($groups[$catId])) {
+                if (count($groups) >= $maxCategories) continue; // cap reached, skip new groups
                 $groups[$catId] = [
                     'category' => ['id' => $catId, 'name' => $row['cat_name'], 'slug' => $row['cat_slug']],
                     'products' => [],
                 ];
             }
-            $groups[$catId]['products'][] = normalizeProduct($row);
+            if (isset($groups[$catId])) $groups[$catId]['products'][] = normalizeProduct($row);
         }
 
         jsonOut(['data' => array_values($groups)]);
